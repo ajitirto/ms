@@ -1,0 +1,13 @@
+[project]
+name = "simple-service"
+version = "0.1.0"
+description = "examplle"
+requires-python = ">=3.9"  # Contoh: butuh Python 3.9 ke atas
+dependencies = [
+    "fastapi>=0.120.1",
+]
+
+[dependency-groups]
+dev = [
+    "uvicorn[standard]>=0.38.0",
+]
