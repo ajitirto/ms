@@ -8,56 +8,102 @@ services:
       - no-new-privileges:true
 
     command:
-      # EntryPoints
-      - "--entrypoints.web.address=:80" # Pintu masuk utama di Port 80
+      - "--entrypoints.web.address=:80"
 
-      # Providers 
       - "--providers.docker=true"
       - "--providers.docker.exposedbydefault=false"
       - "--providers.docker.network=custom_network_aji"
 
-      # API & Dashboard 
       - "--api.dashboard=true"
-      - "--api.insecure=true" # Memungkinkan akses dashboard langsung via port 8080
-      - "--api.debug=true" # <== Enabling additional endpoints for debugging and profiling
-      - "--log.level=DEBUG" # <== Setting the level of the logs from traefik
+      - "--api.insecure=true" 
+      - "--api.debug=true" 
+      - "--log.level=DEBUG"
 
-    # Traefik Dynamic configuration via Docker labels
     labels:
-      # Enable self‑routing
       - "traefik.enable=true"
 
-      # Dashboard router
-      - "traefik.http.routers.dashboard.rule=Host(`dashboard.docker.localhost`) && PathPrefix(`/api`)"
-      - "traefik.http.routers.dashboard.entrypoints=web" # Menggunakan EntryPoint 'web' (Port 80)
+      # - "traefik.http.routers.dashboard.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.dashboard.entrypoints=web" 
       - "traefik.http.routers.dashboard.service=api@internal"
 
 
     ports:
-      - "80:80"     # Akses Service
-      - "8080:8080" # Akses Dashboard
+      - "80:80"    
+      - "8080:8080"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       # - ./traefik.yml:/etc/traefik/traefik.yml:ro
     networks:
       - custom_network_aji
-    
-  
-  whoami:
-    container_name: whoami_microservice_aji
-    image: traefik/whoami
+
+  order-service:
+    build: 
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: order-service
     restart: unless-stopped
+    
+    expose: 
+      - 8080
+    environment:
+      DB_HOST: order-db 
+      DB_PORT: 5432
+      DB_USER: orderuser
+      DB_PASSWORD: supersecret
+      DB_NAME: orderdb
+      APP_PORT: 8080 
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.order-service.rule=Host(`order.localhost`) || PathPrefix(`/orders`)"
+      - "traefik.http.routers.order-service.entrypoints=web"
+      - "traefik.http.services.order-service.loadbalancer.server.port=8080"
+    networks:
+      - custom_network_aji
+    depends_on:
+      - order-db
+      
+  order-db:
+    image: postgres:15-alpine
+    container_name: order_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: orderuser
+      POSTGRES_PASSWORD: supersecret
+      POSTGRES_DB: orderdb
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./dummy-database/order_db:/docker-entrypoint-initdb.d
+    networks:
+      - db_network_aji
+      - custom_network_aji
+
+  frontend:
+    container_name: frontend_microservice_aji
+    image: nginx:alpine 
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro 
     networks:
       - custom_network_aji
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.whoami.rule=Host(`whoami.docker.localhost`) || PathPrefix(`/whoami`)"
-      - "traefik.http.routers.whoami.entrypoints=web" # Menggunakan EntryPoint 'web' (Port 80)
-    
+      - "traefik.http.routers.frontend.rule=Host(`frontend.docker.localhost`)"
+      - "traefik.http.routers.frontend.entrypoints=web" 
+      - "traefik.http.routers.root.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.root.entrypoints=web"
+      - "traefik.http.routers.root.service=frontend"
+      - "traefik.http.services.frontend.loadbalancer.server.port=80"
+      - "traefik.http.routers.root.priority=10"
 
 networks:
   custom_network_aji:
     driver: bridge
     ipam:
+      driver: default
       config:
-        - subnet: 172.25.0.0/16
+        - subnet: 172.16.0.0/16
+  db_network_aji:
+    driver: bridge
+
+volumes:
+  postgres_data:
