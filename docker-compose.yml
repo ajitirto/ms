@@ -1,0 +1,63 @@
+
+services:
+  reverse-proxy:
+    container_name: traefik_microservice_aji
+    image: traefik:v3.5
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+    command:
+      # EntryPoints
+      - "--entrypoints.web.address=:80" # Pintu masuk utama di Port 80
+
+      # Providers 
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=custom_network_aji"
+
+      # API & Dashboard 
+      - "--api.dashboard=true"
+      - "--api.insecure=true" # Memungkinkan akses dashboard langsung via port 8080
+      - "--api.debug=true" # <== Enabling additional endpoints for debugging and profiling
+      - "--log.level=DEBUG" # <== Setting the level of the logs from traefik
+
+    # Traefik Dynamic configuration via Docker labels
+    labels:
+      # Enable self‑routing
+      - "traefik.enable=true"
+
+      # Dashboard router
+      - "traefik.http.routers.dashboard.rule=Host(`dashboard.docker.localhost`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.dashboard.entrypoints=web" # Menggunakan EntryPoint 'web' (Port 80)
+      - "traefik.http.routers.dashboard.service=api@internal"
+
+
+    ports:
+      - "80:80"     # Akses Service
+      - "8080:8080" # Akses Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # - ./traefik.yml:/etc/traefik/traefik.yml:ro
+    networks:
+      - custom_network_aji
+    
+  
+  whoami:
+    container_name: whoami_microservice_aji
+    image: traefik/whoami
+    restart: unless-stopped
+    networks:
+      - custom_network_aji
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`whoami.docker.localhost`) || PathPrefix(`/whoami`)"
+      - "traefik.http.routers.whoami.entrypoints=web" # Menggunakan EntryPoint 'web' (Port 80)
+    
+
+networks:
+  custom_network_aji:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.25.0.0/16
