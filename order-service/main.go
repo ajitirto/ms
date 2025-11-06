@@ -8,9 +8,16 @@ import (
 	"os"
 
 	_ "github.com/lib/pq"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+
+	err := godotenv.Load()
+    if err != nil {
+        log.Println("Error loading .env file (defaulting to existing environment vars)")
+    }
+    //
 	dbHost := os.Getenv("DB_HOST")
 	dbPort := os.Getenv("DB_PORT")
 	dbUser := os.Getenv("DB_USER")

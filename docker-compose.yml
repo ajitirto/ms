@@ -70,6 +70,9 @@ services:
       POSTGRES_USER: orderuser
       POSTGRES_PASSWORD: supersecret
       POSTGRES_DB: orderdb
+    # # for dev purpose, map to different port
+    # ports:
+    #   - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./dummy-database/order_db:/docker-entrypoint-initdb.d
