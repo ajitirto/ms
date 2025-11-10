@@ -70,14 +70,52 @@ services:
       POSTGRES_USER: orderuser
       POSTGRES_PASSWORD: supersecret
       POSTGRES_DB: orderdb
-    # # for dev purpose, map to different port
-    # ports:
-    #   - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - order_data:/var/lib/postgresql/data
       - ./dummy-database/order_db:/docker-entrypoint-initdb.d
     networks:
-      - db_network_aji
+      - db_network_order
+      - custom_network_aji
+
+  product-service:
+    build: 
+      context: ./product-service
+      dockerfile: Dockerfile
+    container_name: product-service
+    restart: unless-stopped
+    
+    expose: 
+      - 8080
+    environment:
+      DB_HOST: product-db 
+      DB_PORT: 5432
+      DB_USER: productuser
+      DB_PASSWORD: supersecret
+      DB_NAME: productdb
+      APP_PORT: 8080 
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.product-service.rule=Host(`product.localhost`) || PathPrefix(`/products`)"
+      - "traefik.http.routers.product-service.entrypoints=web"
+      - "traefik.http.services.product-service.loadbalancer.server.port=8080"
+    networks:
+      - custom_network_aji
+    depends_on:
+      - product-db
+      
+  product-db:
+    image: postgres:15-alpine
+    container_name: product_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: productuser
+      POSTGRES_PASSWORD: supersecret
+      POSTGRES_DB: productdb
+    volumes:
+      - product_data:/var/lib/postgresql/data
+      - ./dummy-database/product_db:/docker-entrypoint-initdb.d
+    networks:
+      - db_network_product
       - custom_network_aji
 
   frontend:
@@ -105,8 +143,11 @@ networks:
       driver: default
       config:
         - subnet: 172.16.0.0/16
-  db_network_aji:
+  db_network_product:
+    driver: bridge
+  db_network_order:
     driver: bridge
 
 volumes:
-  postgres_data:
+  order_data:
+  product_data:
