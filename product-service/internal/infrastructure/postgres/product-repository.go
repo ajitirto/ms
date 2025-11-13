@@ -1,8 +1,9 @@
 package postgres
 
-
-import (	
+import (
+	"context"
 	"database/sql"
+
 	"github.com/ajitirto/ms/product-service/internal/domain"
 	"github.com/ajitirto/ms/product-service/internal/repository"
 )
@@ -15,22 +16,27 @@ func NewProductRepository(db *sql.DB) repository.ProductRepository {
 	return &ProductRepository{db: db}
 }
 
-func (r *ProductRepository) GetByID(id int) (domain.Product, error) {
+func (r *ProductRepository) GetByID(ctx context.Context, id int) (*domain.Product, error) {
 	var product domain.Product
 	query := `SELECT product_id, customer_id, product_date, total_amount FROM products WHERE product_id = $1`
 
-	err := r.db.QueryRow(query, id).Scan(
+	err := r.db.QueryRowContext(ctx, query, id).Scan(
 		&product.ProductID,
 		&product.CustomerID,
 		&product.ProductDate,
 		&product.TotalAmount,
 	)
 	if err == sql.ErrNoRows {
-		return domain.Product{}, nil
+		return  nil, repository.ErrProductNotFound
 	}
-	return product, err
+
+	if err != nil {
+        return nil, err
+    }
+
+	return &product, err
 }
-func (r *ProductRepository) GetAll() ([]domain.Product, error) {
+func (r *ProductRepository) GetAll(ctx context.Context) ([]domain.Product, error) {
 	query := `SELECT product_id, customer_id, product_date, total_amount FROM products`
 	rows, err := r.db.Query(query)
 	if err != nil {

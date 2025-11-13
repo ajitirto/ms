@@ -52,6 +52,8 @@ services:
       DB_PASSWORD: supersecret
       DB_NAME: orderdb
       APP_PORT: 8080 
+      REDIS_HOST: redis 
+      REDIS_PORT: 6379 
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.order-service.rule=Host(`order.localhost`) || PathPrefix(`/orders`)"
@@ -61,6 +63,7 @@ services:
       - custom_network_aji
     depends_on:
       - order-db
+      - redis
       
   order-db:
     image: postgres:15-alpine
@@ -92,7 +95,10 @@ services:
       DB_USER: productuser
       DB_PASSWORD: supersecret
       DB_NAME: productdb
-      APP_PORT: 8080 
+      APP_PORT: 8080
+      REDIS_HOST: redis 
+      REDIS_PORT: 6379  
+
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.product-service.rule=Host(`product.localhost`) || PathPrefix(`/products`)"
@@ -102,6 +108,7 @@ services:
       - custom_network_aji
     depends_on:
       - product-db
+      - redis
       
   product-db:
     image: postgres:15-alpine
@@ -117,6 +124,8 @@ services:
     networks:
       - db_network_product
       - custom_network_aji
+
+  
 
   frontend:
     container_name: frontend_microservice_aji
@@ -136,6 +145,33 @@ services:
       - "traefik.http.services.frontend.loadbalancer.server.port=80"
       - "traefik.http.routers.root.priority=10"
 
+  redis:
+    image: redis:7-alpine
+    container_name: redis_cache
+    restart: unless-stopped
+    expose: 
+      - 6379
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data 
+    networks:
+      - custom_network_aji
+  
+  redis-ui:
+    image: rediscommander/redis-commander:latest
+    container_name: redis_commander_ui
+    restart: unless-stopped
+    environment:
+      
+      REDIS_HOSTS: 'myredis:redis:6379' 
+    ports:
+      - "8081:8081" # Port untuk mengakses UI (Anda bisa ganti 8081 ke port lain)
+    depends_on:
+      - redis
+    networks:
+      - custom_network_aji
+
 networks:
   custom_network_aji:
     driver: bridge
@@ -151,3 +187,4 @@ networks:
 volumes:
   order_data:
   product_data:
+  redis_data:

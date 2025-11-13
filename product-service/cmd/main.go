@@ -1,16 +1,20 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
+	"time"
+
+	"github.com/go-redis/redis/v8"
 
 	"github.com/ajitirto/ms/product-service/internal/infrastructure/postgres"
+	redisInfra "github.com/ajitirto/ms/product-service/internal/infrastructure/redis"
 	"github.com/ajitirto/ms/product-service/internal/usecase"
 	"github.com/ajitirto/ms/product-service/pkg/server"
-
 
 	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
@@ -27,6 +31,33 @@ func main() {
 	dbPassword := os.Getenv("DB_PASSWORD")
 	dbName := os.Getenv("DB_NAME")
 	appPort := os.Getenv("APP_PORT")
+
+	redisHost := os.Getenv("REDIS_HOST") 
+	redisPort := os.Getenv("REDIS_PORT") 
+
+	// fmt.Println(redisHost, redisPort)
+
+
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%s", redisHost, redisPort),
+		// Addr:     "127.0.0.1:6379",
+		Password: "", // tidak ada password
+		DB:       0,  // gunakan DB default
+	})
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		log.Printf("Warning: Could not connect to Redis at %s:%s. Running without cache. Error: %v", redisHost, redisPort, err)
+	} else {
+		log.Println("Successfully connected to Redis cache.")
+	}
+
+	const cacheTTL = 5 * time.Minute 
+	productCache := redisInfra.NewProductCacheRedis(redisClient, cacheTTL) 
+
+
 	if appPort == "" {
 		appPort = "8080" 
 	}
@@ -46,10 +77,10 @@ func main() {
 	}
 	fmt.Println("Successfully connected to PostgreSQL!")
 
-	// 3. Dependency Injection
-	// Infrastructure -> Usecase -> Delivery
+	
+
 	productRepo := postgres.NewProductRepository(db)
-	productUC := usecase.NewProductService(productRepo)
+	productUC := usecase.NewProductService(productRepo, productCache)
 	productHandler := server.NewProductHandler(productUC)
 
 	http.HandleFunc("/", productHandler.StatusHandler)

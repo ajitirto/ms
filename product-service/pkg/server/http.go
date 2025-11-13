@@ -33,7 +33,7 @@ func (h *ProductHandler) HandleProducts(w http.ResponseWriter, r *http.Request) 
 }
 
 func (h *ProductHandler) getAllProducts(w http.ResponseWriter, r *http.Request) {
-	products, err := h.ProductUC.GetAllProducts()
+	products, err := h.ProductUC.GetAllProducts(r.Context())
 	if err != nil {
 		http.Error(w, "Failed to retrieve products", http.StatusInternalServerError)
 		return
@@ -62,7 +62,7 @@ func (h *ProductHandler) GetOrderByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	product, err := h.ProductUC.GetProduct(id)
+	product, err := h.ProductUC.GetProduct(r.Context(), id)
 	if err != nil {
 		http.Error(w, "Failed to retrieve product", http.StatusInternalServerError)
 		return
